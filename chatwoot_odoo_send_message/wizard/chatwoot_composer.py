@@ -28,9 +28,7 @@ class ChatwootComposer(models.TransientModel):
 
     chatwoot_user_id = fields.Many2one(
         "chatwoot.users",
-        string="Usuario",
-        domain="[('instance_id','=',chatwoot_id)]"
-    )
+        string="Usuario")
 
     chatwoot_team = fields.Many2one(
         "chatwoot.team",
