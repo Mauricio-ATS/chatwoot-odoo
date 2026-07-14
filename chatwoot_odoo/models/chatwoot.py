@@ -5,6 +5,8 @@ import mimetypes
 import os
 from odoo import models, fields
 from odoo.exceptions import UserError
+import logging
+_logger = logging.getLogger(__name__)
 
 class ChatwootInstance(models.Model):
     _name = 'chatwoot.instance'
@@ -153,6 +155,11 @@ class ChatwootInstance(models.Model):
         if not mimetype:
             mimetype = "application/pdf"
 
+        _logger.info(
+            "Chatwoot SEND -> conversation_id=%s | attachment_id=%s | filename=%s | checksum=%s | size=%s bytes",
+            conversation_id, attachment.id, filename, attachment.checksum, len(file_content)
+        )
+
         url = f"{self.base_url}/api/v1/accounts/{self.account_id}/conversations/{conversation_id}/messages"
         headers = {
             "api_access_token": token
@@ -178,7 +185,15 @@ class ChatwootInstance(models.Model):
             timeout=30,
         )
         response.raise_for_status()
-        return response.json()
+        resp_json = response.json()
+
+        resp_attachments = resp_json.get("attachments", [])
+        _logger.info(
+            "Chatwoot RESPONSE <- attachment_id=%s | message_id=%s | resp_attachments=%s",
+            attachment.id, resp_json.get("id"), resp_attachments
+        )
+
+        return resp_json
 
     def add_label_to_conversation(self, token, conversation_id):
         url = f"{self.base_url}/api/v1/accounts/{self.account_id}/conversations/{conversation_id}/labels"

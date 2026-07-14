@@ -1,7 +1,11 @@
 # -*- coding: utf-8 -*-
+import logging
+import time
 from odoo import models, fields, api, _
 from odoo.exceptions import UserError
 from dateutil.relativedelta import relativedelta
+
+_logger = logging.getLogger(__name__)
 
 class ChatwootComposer(models.TransientModel):
     _name = 'chatwoot.composer'
@@ -93,13 +97,14 @@ class ChatwootComposer(models.TransientModel):
             if hasattr(record, 'partner_id') and record.partner_id:
                 partner_ids = record.partner_id.ids
                 res['partner_id'] = [(6, 0, partner_ids)]
+
             # Somente pelo faturamento vai trazer as faturas abertas;
             if res['model'] == 'account.move':
                 partner = self.env['account.move'].browse(res['res_id']).partner_id.id
                 today = fields.Date.context_today(self)
                 start_last_month = (today.replace(day=1) - relativedelta(months=1))
                 end_month = today.replace(day=1) + relativedelta(months=1)
-                
+
                 invoices = self.env['account.move'].search([
                     ("partner_id", "=", partner),
                     ("payment_state", "=", "not_paid"),
@@ -107,14 +112,29 @@ class ChatwootComposer(models.TransientModel):
                     ("invoice_date", "<", end_month),
                     ("move_type", "=", "out_invoice"),
                 ])
+
+                all_attachments = self.env['ir.attachment']
+                seen_checksums = set()
+
                 for inv in invoices:
-                    if not inv.attachment_ids:
-                        attachment = self.env['mail.mail'].search([
-                            ('res_id', '=', inv.id)
-                        ]).attachment_ids
-                    else:
-                        attachment = inv.attachment_ids
-                    res['attachment_ids'] = [(6, 0, attachment.ids)]
+                    attachment = self.env['ir.attachment'].search([
+                        ('res_model', '=', 'account.move'),
+                        ('res_id', '=', inv.id),
+                    ])
+
+                    if not attachment:
+                        last_mail = self.env['mail.mail'].search([
+                            ('res_id', '=', inv.id),
+                            ('model', '=', 'account.move'),
+                        ], order='id desc', limit=1)
+                        attachment = last_mail.attachment_ids
+
+                    for att in attachment:
+                        if att.checksum not in seen_checksums:
+                            seen_checksums.add(att.checksum)
+                            all_attachments |= att
+
+                res['attachment_ids'] = [(6, 0, all_attachments.ids)]
 
         instance = self.env['chatwoot.instance'].search([('account_id', '=', self.env.company.chatwoot_account_id)], limit=1)
         if instance:
@@ -184,6 +204,11 @@ class ChatwootComposer(models.TransientModel):
                 if self.attachment_ids:
                     first_attachment = self.attachment_ids[0]
 
+                    _logger.info(
+                        "Iniciando envio de %s anexo(s) para partner=%s conversation_id=%s",
+                        len(self.attachment_ids), partner.name, conversation_id
+                    )
+
                     self.chatwoot_id.send_chatwoot_attachment(
                         token,
                         conversation_id,
@@ -192,6 +217,7 @@ class ChatwootComposer(models.TransientModel):
                     )
 
                     for attachment in self.attachment_ids[1:]:
+                        time.sleep(2)  # diagnóstico: dá tempo do provider processar antes do próximo envio
                         self.chatwoot_id.send_chatwoot_attachment(
                             token,
                             conversation_id,
