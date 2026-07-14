@@ -98,41 +98,27 @@ class ChatwootComposer(models.TransientModel):
                 partner_ids = record.partner_id.ids
                 res['partner_id'] = [(6, 0, partner_ids)]
 
-            # Somente pelo faturamento vai trazer as faturas abertas;
+            # Anexos apenas da fatura em que estou (record atual), não de outras faturas em aberto
             if res['model'] == 'account.move':
-                partner = self.env['account.move'].browse(res['res_id']).partner_id.id
-                today = fields.Date.context_today(self)
-                start_last_month = (today.replace(day=1) - relativedelta(months=1))
-                end_month = today.replace(day=1) + relativedelta(months=1)
-
-                invoices = self.env['account.move'].search([
-                    ("partner_id", "=", partner),
-                    ("payment_state", "=", "not_paid"),
-                    ("invoice_date", ">=", start_last_month),
-                    ("invoice_date", "<", end_month),
-                    ("move_type", "=", "out_invoice"),
-                ])
-
                 all_attachments = self.env['ir.attachment']
                 seen_checksums = set()
 
-                for inv in invoices:
-                    attachment = self.env['ir.attachment'].search([
-                        ('res_model', '=', 'account.move'),
-                        ('res_id', '=', inv.id),
-                    ])
+                attachment = self.env['ir.attachment'].search([
+                    ('res_model', '=', 'account.move'),
+                    ('res_id', '=', record.id),
+                ])
 
-                    if not attachment:
-                        last_mail = self.env['mail.mail'].search([
-                            ('res_id', '=', inv.id),
-                            ('model', '=', 'account.move'),
-                        ], order='id desc', limit=1)
-                        attachment = last_mail.attachment_ids
+                if not attachment:
+                    last_mail = self.env['mail.mail'].search([
+                        ('res_id', '=', record.id),
+                        ('model', '=', 'account.move'),
+                    ], order='id desc', limit=1)
+                    attachment = last_mail.attachment_ids
 
-                    for att in attachment:
-                        if att.checksum not in seen_checksums:
-                            seen_checksums.add(att.checksum)
-                            all_attachments |= att
+                for att in attachment:
+                    if att.checksum not in seen_checksums:
+                        seen_checksums.add(att.checksum)
+                        all_attachments |= att
 
                 res['attachment_ids'] = [(6, 0, all_attachments.ids)]
 
@@ -141,7 +127,6 @@ class ChatwootComposer(models.TransientModel):
             res['chatwoot_id'] = instance.id
 
         return res
-
     @api.depends('body', 'attachment_ids')
     def _compute_preview(self):
         for record in self:
