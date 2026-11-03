@@ -174,7 +174,7 @@ class ChatwootComposer(models.TransientModel):
                     token,
                     phone_number,
                     partner,
-                    self.chatwoot_team,
+                    self.chatwoot_team.team_id,
                     self.chatwoot_user_id.code,
                     self.inbox_id
                 )
@@ -225,8 +225,8 @@ class ChatwootComposer(models.TransientModel):
 
     @api.onchange("chatwoot_user_id")
     def _onchange_chatwoot_user_id(self):
-        self.inbox_id = False
-        if self.chatwoot_user_id and self.chatwoot_user_id.inbox_ids:
-            self.inbox_id = self.chatwoot_user_id.inbox_ids[0]
+        if not self.inbox_id:
+            if self.chatwoot_user_id and len(self.chatwoot_user_id.inbox_ids) == 1:
+                self.inbox_id = self.chatwoot_user_id.inbox_ids.id
         
    
