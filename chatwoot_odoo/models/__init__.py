@@ -16,6 +16,6 @@
 #
 ##############################################################################
 
-from . import res_company
+from . import res_user
 from . import chatwoot
 from . import chatwoot_users

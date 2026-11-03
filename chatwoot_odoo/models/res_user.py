@@ -2,8 +2,8 @@ from odoo import api, fields, models
 from odoo.exceptions import UserError
 
 
-class Company(models.Model):
-    _inherit = "res.company"
+class Users(models.Model):
+    _inherit = "res.users"
 
     chatwoot_account_id = fields.Char(
         string="Chatwoot Account ID",

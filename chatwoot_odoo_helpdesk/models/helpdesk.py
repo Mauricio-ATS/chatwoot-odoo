@@ -18,7 +18,7 @@ class HelpDeskTicket(models.Model):
         'chatwoot.instance', 
         string="Instância", 
         default=lambda self: self.env['chatwoot.instance'].search(
-            [('account_id', '=', self.env.company.chatwoot_account_id)],
+            [('account_id', '=', self.env.user.chatwoot_account_id)],
             limit=1
         ),
     )
